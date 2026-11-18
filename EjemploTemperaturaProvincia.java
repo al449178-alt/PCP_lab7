@@ -97,7 +97,7 @@ class EjemploTemperaturaProvincia {
     System.out.println( "  Pueblo: " + MaxMinSec.damePueblo() + " , Maxima = " +
                        MaxMinSec.dameTemperaturaMaxima() + " , Minima = " +
                        MaxMinSec.dameTemperaturaMinima() );
-/*    
+
     //
     // Implementacion paralela: Gestion Propia.
     //
@@ -110,9 +110,9 @@ class EjemploTemperaturaProvincia {
     t2 = System.nanoTime();
     tp = ( ( double ) ( t2 - t1 ) ) / 1.0e9;
     System.out.print( "Implementacion paralela: Gestion Propia.     " );
-//    System.out.println( " Tiempo(s): " + tp + " , Incremento: " + ... );
-//    System.out.println( "  Pueblo: " + ... + " , Maxima = " + ... + " , Minima = " + ... );
-*/    
+    System.out.println( " Tiempo(s): " + tp + " , Incremento: " + (ts / tp) );
+    System.out.println( "  Pueblo: " + MaxMinPar.damePueblo() + " , Maxima = " + MaxMinPar.dameTemperaturaMaxima() + " , Minima = " + MaxMinPar.dameTemperaturaMinima() );
+
     //
     // Implementacion paralela: Thread Pool isTerminated.
     //
@@ -192,7 +192,30 @@ class EjemploTemperaturaProvincia {
           }
           break;
         case 1:  // Gestion Propia
-          // ...
+          BlockingQueue<TareaEnColaGestionPropia> cola = new LinkedBlockingQueue<>();
+          MiHebraGestionPropia[] hebras = new MiHebraGestionPropia[numHebras];
+
+          // Creacion y arranque de hebras antes de leer el fichero
+          for (int i = 0; i < numHebras; i++) {
+            hebras[i] = new MiHebraGestionPropia(cola, fecha, MaxMinPar);
+            hebras[i].start();
+          }
+
+          // Lectura del fichero e insercion de tareas normales en la cola
+          while ( ( linea = br.readLine() ) != null ) {
+            int codPueblo = Integer.parseInt(linea);
+            cola.put(new TareaEnColaGestionPropia(false, codPueblo));
+          }
+
+          // Insercion de una tarea envenenada por cada hebra consumidora
+          for (int i = 0; i < numHebras; i++) {
+            cola.put(new TareaEnColaGestionPropia(true, -1));
+          }
+
+          // Espera a que todas las hebras terminen antes de medir el tiempo final
+          for (int i = 0; i < numHebras; i++) {
+            hebras[i].join();
+          }
           break;
         case 2: // ThreadPools con isTerminated
           // ...
@@ -278,6 +301,58 @@ class EjemploTemperaturaProvincia {
     }
     return res;
   }
+  // --------------------------------------------------------------------------
+  public static boolean ProcesaPueblo (String fecha, int codPueblo,
+                                       PuebloMaximaMinimaPar MaxMin, boolean imprime) {
+    URL url;
+    InputStream is = null;
+    BufferedReader br;
+    String line, poblacion = new String(), provincia = new String();
+    int state, num[] = new int[2];
+    boolean res = false;
+
+    // Procesamiento de la informacion XML asociada a codPueblo
+    // Actualizacion de MaxMin de acuerdo a los valores obtenidos
+    try {
+      String urlStr = "https://www.aemet.es/xml/municipios/localidad_" +
+              String.format("%05d", codPueblo) + ".xml";
+      url = URI.create(urlStr).toURL();
+      is = url.openStream();  // throws an IOException
+      br = new BufferedReader(new InputStreamReader(is));
+      if (imprime) System.out.println(urlStr);
+
+      state = 0;
+      while (((line = br.readLine()) != null) && (state < 6)) {
+        if ((state == 0) && (line.contains("nombre"))) {
+          poblacion = line.split(">")[1].split("<")[0].split("/")[0];
+          state++;
+        } else if ((state == 1) && (line.contains("provincia"))) {
+          provincia = line.split(">")[1].split("<")[0].split("/")[0];
+          state++;
+        } else if ((state == 2) && (line.contains(fecha))) {
+          state++;
+        } else if ((state == 3) && (line.contains("temperatura"))) {
+          state++;
+        } else if ((state > 3) && ((line.contains("maxima")) || (line.contains("minima")))) {
+          num[state - 4] = Integer.parseInt(line.split(">")[1].split("<")[0]);
+          state++;
+        }
+      }
+      MaxMin.actualizaMaxMin(poblacion, codPueblo, num[0], num[1]);
+      res = true;
+    } catch (MalformedURLException mue) {
+      mue.printStackTrace();
+    } catch (IOException ioe) {
+      // ioe.printStackTrace();
+    } finally {
+      try {
+        if (is != null) is.close();
+      } catch (IOException ioe) {
+        // nothing to see here
+      }
+    }
+    return res;
+  }
 }
 
 // ============================================================================
@@ -345,7 +420,7 @@ class PuebloMaximaMinimaPar {
   }
   
   // --------------------------------------------------------------------------
-  public void actualizaMaxMin( String poblacion, int codigo, int max, int min ) {
+  public synchronized void actualizaMaxMin( String poblacion, int codigo, int max, int min ) {
     if ((this.poblacion == null) || ((this.max-this.min) < (max-min)) ||
         (((this.max-this.min) == (max-min)) && (this.min < min)) ||
         (((this.max-this.min) == (max-min)) && (this.min == min) && (this.codigo < codigo))
@@ -358,22 +433,64 @@ class PuebloMaximaMinimaPar {
   }
   
   // --------------------------------------------------------------------------
-  public String damePueblo() {
+  public synchronized String damePueblo() {
     return this.poblacion + "(" + this.codigo + ")";
   }
   
   // --------------------------------------------------------------------------
-  public int dameCodigo() {
+  public synchronized int dameCodigo() {
     return this.codigo;
   }
   
   // --------------------------------------------------------------------------
-  public int dameTemperaturaMaxima() {
+  public synchronized int dameTemperaturaMaxima() {
     return this.max;
   }
   
   // --------------------------------------------------------------------------
-  public int dameTemperaturaMinima() {
+  public synchronized int dameTemperaturaMinima() {
     return this.min;
+  }
+}
+// ============================================================================
+class TareaEnColaGestionPropia {
+  // ============================================================================
+  final boolean esVeneno;
+  final int codPueblo;
+
+  public TareaEnColaGestionPropia(boolean esVeneno, int codPueblo) {
+    this.esVeneno = esVeneno;
+    this.codPueblo = codPueblo;
+  }
+}
+
+// ============================================================================
+class MiHebraGestionPropia extends Thread {
+  // ============================================================================
+  private final BlockingQueue<TareaEnColaGestionPropia> cola;
+  private final String fecha;
+  private final PuebloMaximaMinimaPar maxMinPar;
+
+  public MiHebraGestionPropia(BlockingQueue<TareaEnColaGestionPropia> cola,
+                              String fecha,
+                              PuebloMaximaMinimaPar maxMinPar) {
+    this.cola = cola;
+    this.fecha = fecha;
+    this.maxMinPar = maxMinPar;
+  }
+
+  @Override
+  public void run() {
+    try {
+      while (true) {
+        TareaEnColaGestionPropia tarea = cola.take();
+        if (tarea.esVeneno) {
+          break;
+        }
+        EjemploTemperaturaProvincia.ProcesaPueblo(fecha, tarea.codPueblo, maxMinPar, false);
+      }
+    } catch (InterruptedException e) {
+      Thread.currentThread().interrupt();
+    }
   }
 }
