@@ -221,24 +221,20 @@ class EjemploTemperaturaProvincia {
           BlockingQueue<TareaEnColaGestionPropia> cola = new LinkedBlockingQueue<>();
           MiHebraGestionPropia[] hebras = new MiHebraGestionPropia[numHebras];
 
-          // Creacion y arranque de hebras antes de leer el fichero
           for (int i = 0; i < numHebras; i++) {
             hebras[i] = new MiHebraGestionPropia(cola, fecha, MaxMinPar);
             hebras[i].start();
           }
 
-          // Lectura del fichero e insercion de tareas normales en la cola
           while ( ( linea = br.readLine() ) != null ) {
             int codPueblo = Integer.parseInt(linea);
             cola.put(new TareaEnColaGestionPropia(false, codPueblo));
           }
 
-          // Insercion de una tarea envenenada por cada hebra consumidora
           for (int i = 0; i < numHebras; i++) {
             cola.put(new TareaEnColaGestionPropia(true, -1));
           }
 
-          // Espera a que todas las hebras terminen antes de medir el tiempo final
           for (int i = 0; i < numHebras; i++) {
             hebras[i].join();
           }
