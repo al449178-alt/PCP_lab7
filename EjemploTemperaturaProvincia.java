@@ -125,9 +125,7 @@ class EjemploTemperaturaProvincia {
     tp = ( ( double ) ( t2 - t1 ) ) / 1.0e9;
     System.out.print( "Implementacion paralela: Thread Pool isTerminated. " );
     System.out.println( " Tiempo(s): " + tp + " , Incremento: " + (ts / tp) );
-    System.out.println( "  Pueblo: " + MaxMinPar.damePueblo() + " , Maxima = " +
-                       MaxMinPar.dameTemperaturaMaxima() + " , Minima = " +
-                       MaxMinPar.dameTemperaturaMinima() );
+    System.out.println( "  Pueblo: " + MaxMinPar.damePueblo() + " , Maxima = " + MaxMinPar.dameTemperaturaMaxima() + " , Minima = " + MaxMinPar.dameTemperaturaMinima() );
     
     //
     // Implementacion paralela: Thread Pool con awaitTermination.
@@ -146,9 +144,7 @@ class EjemploTemperaturaProvincia {
     tp = ( ( double ) ( t2 - t1 ) ) / 1.0e9;
     System.out.print( "Implementacion paralela: Thread Pool con Future. " );
     System.out.println( " Tiempo(s): " + tp + " , Incremento: " + (ts / tp) );
-    System.out.println( "  Pueblo: " + MaxMinSec.damePueblo() + " , Maxima = " +
-                       MaxMinSec.dameTemperaturaMaxima() + " , Minima = " +
-                       MaxMinSec.dameTemperaturaMinima() );
+    System.out.println( "  Pueblo: " + MaxMinSec.damePueblo() + " , Maxima = " + MaxMinSec.dameTemperaturaMaxima() + " , Minima = " + MaxMinSec.dameTemperaturaMinima() );
     
   }
   
