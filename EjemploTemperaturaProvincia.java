@@ -130,7 +130,15 @@ class EjemploTemperaturaProvincia {
     //
     // Implementacion paralela: Thread Pool con awaitTermination.
     //
-    // ...
+    System.out.println();
+    t1 = System.nanoTime();
+    MaxMinPar = new PuebloMaximaMinimaPar();
+    obtenMayorDiferenciaDeFichero (nombreFichero, fecha, codProvincia, MaxMinSec, MaxMinPar, 3, numHebras);
+    t2 = System.nanoTime();
+    tp = ( ( double ) ( t2 - t1 ) ) / 1.0e9;
+    System.out.print( "Implementacion paralela: Thread Pool awaitTermination. " );
+    System.out.println( " Tiempo(s): " + tp + " , Incremento: " + (ts / tp) );
+    System.out.println( "  Pueblo: " + MaxMinPar.damePueblo() + " , Maxima = " + MaxMinPar.dameTemperaturaMaxima() + " , Minima = " + MaxMinPar.dameTemperaturaMinima() );
     
     //
     // Implementacion paralela: Thread Pool con Future.
@@ -246,7 +254,14 @@ class EjemploTemperaturaProvincia {
           }
           break;
         case 3: // ThreadPools con awaitTermination
-          // ...
+          exec = Executors.newFixedThreadPool(numHebras);
+          while( ( linea = br.readLine() ) != null ) {
+            int codPueblo = Integer.parseInt(linea);
+            exec.execute(new TareaPuebloRunnable(fecha, codPueblo, MaxMinPar));
+          }
+          exec.shutdown();
+          while( !exec.awaitTermination(1L, TimeUnit.SECONDS) ) {
+          }
           break;
         case 4: // ThreadPools + con Future
           exec = Executors.newFixedThreadPool(numHebras);
