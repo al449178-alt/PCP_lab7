@@ -116,7 +116,18 @@ class EjemploTemperaturaProvincia {
     //
     // Implementacion paralela: Thread Pool isTerminated.
     //
-    // ...
+    System.out.println();
+    t1 = System.nanoTime();
+    MaxMinPar = new PuebloMaximaMinimaPar();
+    obtenMayorDiferenciaDeFichero (nombreFichero, fecha, codProvincia, MaxMinSec, MaxMinPar,
+                                      2, numHebras);
+    t2 = System.nanoTime();
+    tp = ( ( double ) ( t2 - t1 ) ) / 1.0e9;
+    System.out.print( "Implementacion paralela: Thread Pool isTerminated. " );
+    System.out.println( " Tiempo(s): " + tp + " , Incremento: " + (ts / tp) );
+    System.out.println( "  Pueblo: " + MaxMinPar.damePueblo() + " , Maxima = " +
+                       MaxMinPar.dameTemperaturaMaxima() + " , Minima = " +
+                       MaxMinPar.dameTemperaturaMinima() );
     
     //
     // Implementacion paralela: Thread Pool con awaitTermination.
@@ -126,7 +137,18 @@ class EjemploTemperaturaProvincia {
     //
     // Implementacion paralela: Thread Pool con Future.
     //
-    // ...
+    System.out.println();
+    t1 = System.nanoTime();
+    MaxMinSec = new PuebloMaximaMinimaSec();
+    obtenMayorDiferenciaDeFichero (nombreFichero, fecha, codProvincia, MaxMinSec, MaxMinPar,
+                                      4, numHebras);
+    t2 = System.nanoTime();
+    tp = ( ( double ) ( t2 - t1 ) ) / 1.0e9;
+    System.out.print( "Implementacion paralela: Thread Pool con Future. " );
+    System.out.println( " Tiempo(s): " + tp + " , Incremento: " + (ts / tp) );
+    System.out.println( "  Pueblo: " + MaxMinSec.damePueblo() + " , Maxima = " +
+                       MaxMinSec.dameTemperaturaMaxima() + " , Minima = " +
+                       MaxMinSec.dameTemperaturaMinima() );
     
   }
   
@@ -218,13 +240,32 @@ class EjemploTemperaturaProvincia {
           }
           break;
         case 2: // ThreadPools con isTerminated
-          // ...
+          exec = Executors.newFixedThreadPool(numHebras);
+          while( ( linea = br.readLine() ) != null ) {
+            int codPueblo = Integer.parseInt(linea);
+            exec.execute(new TareaPuebloRunnable(fecha, codPueblo, MaxMinPar));
+          }
+          exec.shutdown();
+          while( !exec.isTerminated() ) {
+          }
           break;
         case 3: // ThreadPools con awaitTermination
           // ...
           break;
         case 4: // ThreadPools + con Future
-          // ...
+          exec = Executors.newFixedThreadPool(numHebras);
+          ArrayList<Future<PuebloMaximaMinimaSec>> resultados = new ArrayList<>();
+          while( ( linea = br.readLine() ) != null ) {
+            int codPueblo = Integer.parseInt(linea);
+            resultados.add(exec.submit(new TareaPuebloCallable(fecha, codPueblo)));
+          }
+          exec.shutdown();
+          for (Future<PuebloMaximaMinimaSec> resultado : resultados) {
+            PuebloMaximaMinimaSec pueblo = resultado.get();
+            if (pueblo.dameCodigo() != -1) {
+              MaxMinSec.actualizaMaxMin(pueblo.poblacion, pueblo.codigo, pueblo.max, pueblo.min);
+            }
+          }
           break;
         default:
           break;
@@ -492,5 +533,42 @@ class MiHebraGestionPropia extends Thread {
     } catch (InterruptedException e) {
       Thread.currentThread().interrupt();
     }
+  }
+}
+
+
+// ============================================================================
+class TareaPuebloRunnable implements Runnable {
+  // ============================================================================
+  private final String fecha;
+  private final int codPueblo;
+  private final PuebloMaximaMinimaPar MaxMin;
+
+  public TareaPuebloRunnable(String fecha, int codPueblo, PuebloMaximaMinimaPar MaxMin) {
+    this.fecha = fecha;
+    this.codPueblo = codPueblo;
+    this.MaxMin = MaxMin;
+  }
+
+  public void run() {
+    EjemploTemperaturaProvincia.ProcesaPueblo(fecha, codPueblo, MaxMin, false);
+  }
+}
+
+// ============================================================================
+class TareaPuebloCallable implements Callable<PuebloMaximaMinimaSec> {
+  // ============================================================================
+  private final String fecha;
+  private final int codPueblo;
+
+  public TareaPuebloCallable(String fecha, int codPueblo) {
+    this.fecha = fecha;
+    this.codPueblo = codPueblo;
+  }
+
+  public PuebloMaximaMinimaSec call() {
+    PuebloMaximaMinimaSec MaxMin = new PuebloMaximaMinimaSec();
+    EjemploTemperaturaProvincia.ProcesaPueblo(fecha, codPueblo, MaxMin, false);
+    return MaxMin;
   }
 }
